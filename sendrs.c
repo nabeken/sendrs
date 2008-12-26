@@ -15,7 +15,6 @@ THIS CODE IS PROVIDED BY AS-IS.
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
 #include <netdb.h>
-#include <linux/ipv6.h>
 
 #define MSG_SIZE 4096
 #define MAX_IFR 10
