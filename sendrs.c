@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
     struct addrinfo hints, *res;
     static struct sockaddr_storage ss;
     struct nd_router_solicit *rs;
-    struct nd_opt_hdr *rs_opt_hdr;
+    uint8_t *rs_opt;
     unsigned char buf[4096];
     struct msghdr mhdr;
     struct cmsghdr *cmsg;
@@ -106,11 +106,11 @@ int main(int argc, char *argv[]) {
 
 
     if (ifr.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
-	rs_opt_hdr = (struct nd_opt_hdr *)(buf + len);
-	rs_opt_hdr->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
-	rs_opt_hdr->nd_opt_len  = (sizeof(struct nd_opt_hdr) + sizeof(char) * 6) / 8;
+	rs_opt = (uint8_t *) (buf + len);
+	*rs_opt++ = ND_OPT_SOURCE_LINKADDR;
+	*rs_opt++ = (uint8_t) 1;
 
-	len += sizeof(struct nd_opt_hdr);
+	len += 2 * sizeof(uint8_t);
 
 	memcpy(buf + len, ifr.ifr_hwaddr.sa_data, sizeof(char) * 6);
 	len += sizeof(char) * 6;
@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
     }
 
     memset(&mhdr, 0, sizeof(mhdr));
-    mhdr.msg_name = (void *)&ss;
+    mhdr.msg_name = (caddr_t *)&ss;
     mhdr.msg_namelen = sizeof(struct sockaddr_in6);
     mhdr.msg_iov = &iov;
     mhdr.msg_iovlen = 1;
