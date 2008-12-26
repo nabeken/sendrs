@@ -6,6 +6,7 @@ THIS CODE IS PROVIDED BY AS-IS.
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <sys/types.h>
@@ -33,8 +34,7 @@ int main(void) {
     struct cmsghdr *cmsg;
     struct iovec iov;
     struct in6_pktinfo *pinfo;
-    struct ifreq ifr[MAX_IFR];
-    struct ifconf ifc;
+    struct ifreq ifr;
 
     int sock, err, fd, nifs, i;
     size_t len;
@@ -50,7 +50,7 @@ int main(void) {
     err = getaddrinfo(all_routers_addr, NULL, &hints, &res);
 
     if (err) {
-	fprintf(stderr, "%s/%s: %s\n", hostname, IPPROTO_ICMPV6, gai_strerror(err));
+	fprintf(stderr, "%s/%s: %s\n", all_routers_addr, IPPROTO_ICMPV6, gai_strerror(err));
 	exit(1);
     }
 
@@ -59,7 +59,7 @@ int main(void) {
 	exit(1);
     }
 
-    memcopy(&ss, res->ai_addr, res->ai_addrlen);
+    memcpy(&ss, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(res);
 
     sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
@@ -84,19 +84,23 @@ int main(void) {
     ifr.ifr_addr.sa_family = AF_INET;
     strncpy(ifr.ifr_name, IFNM, IFNAMSIZ-1);
 
-    ioctl(fd, SIOCGIFHWADDR, &ifr);
+    if (ioctl(fd, SIOCGIFHWADDR, &ifr) != 0) {
+	perror("ioctl error");
+	exit(1);
+    }
 
-    close(df);
 
     rs_opt_hdr = (struct nd_opt_hdr *) buf + len;
     rs_opt_hdr->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
     rs_opt_hdr->nd_opt_len  = 8;
 
-    len += sizeof(struct rs_opt_hdr);
+    len += sizeof(struct nd_opt_hdr);
 
     if (ifr.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
-	memcpy(buf + len, ifr.ifr_hwaddr, sizeof(char) * 6);
+	memcpy(buf + len, ifr.ifr_hwaddr.sa_data, sizeof(char) * 6);
     }
+
+    close(fd);
 
     len += sizeof(char) * 6;
 
@@ -121,7 +125,27 @@ int main(void) {
     cmsg->cmsg_type = IPV6_PKTINFO;
 
     pinfo = (struct in6_pktinfo *)CMSG_DATA(cmsg);
-    get_linklocal_addr(IFNM, pinfo);
+    err = get_linklocal_addr(IFNM, pinfo);
+
+    if (err < 0) {
+	perror("can't get link local address");
+	exit(1);
+    }
+
+    memset(&mhdr, 0, sizeof(mhdr));
+    mhdr.msg_name = (void *)&ss;
+    mhdr.msg_namelen = sizeof(struct sockaddr_in6);
+    mhdr.msg_iov = &iov;
+    mhdr.msg_iovlen = 1;
+    mhdr.msg_control = (void *) cmsg;
+    mhdr.msg_controllen = sizeof(cmsgb);
+
+    err = sendmsg(sock, &mhdr, 0);
+
+    if (err < 0) {
+	perror("sendmsg error");
+	exit(1);
+    }
 
     return 0;
 }
@@ -157,7 +181,7 @@ int get_linklocal_addr(char *ifname, struct in6_pktinfo *pinfo)
 				addr.s6_addr[i] = (unsigned char)ap;
 			}
 			memcpy(&pinfo->ipi6_addr, &addr, sizeof(addr));
-			pinfo->ipi6_ifindex = if_idx
+			pinfo->ipi6_ifindex = if_idx;
 			fclose(fp);
 			return 0;
 		}
