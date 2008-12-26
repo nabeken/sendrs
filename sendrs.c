@@ -49,6 +49,8 @@ int main(int argc, char *argv[]) {
 	exit(1);
     }
 
+    ifname = argv[0];
+
     int sock, err, fd, nifs, i;
     size_t len;
     char cmsgb[CMSG_SPACE(sizeof(struct in6_pktinfo))];
