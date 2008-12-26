@@ -1,5 +1,5 @@
 /*
-Sending Router Solicitation test implemention.
+Sending Router Solicitation test implementation
 
 THIS CODE IS PROVIDED BY AS-IS.
 
