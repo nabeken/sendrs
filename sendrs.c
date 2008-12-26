@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
 	exit(1);
     }
 
-    ifname = argv[0];
+    ifname = argv[1];
 
     int sock, err, fd, nifs, i;
     size_t len;
