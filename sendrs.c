@@ -10,7 +10,6 @@ THIS CODE IS PROVIDED BY AS-IS.
 #include <sys/socket.h>
 #include <netdb.h>
 #include <sys/types.h>
-#include <linux/ipv6.h>
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
 #include <sys/ioctl.h>
@@ -89,10 +88,9 @@ int main(void) {
 	exit(1);
     }
 
-
-    rs_opt_hdr = (struct nd_opt_hdr *) buf + len;
+    rs_opt_hdr = (struct nd_opt_hdr *)(buf + len);
     rs_opt_hdr->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
-    rs_opt_hdr->nd_opt_len  = 8;
+    rs_opt_hdr->nd_opt_len  = (sizeof(struct nd_opt_hdr) + sizeof(char) * 6) / 8;
 
     len += sizeof(struct nd_opt_hdr);
 
@@ -151,6 +149,8 @@ int main(void) {
 }
 
 /* this function is delivered by radvd-1.2/device-linux.c */
+/* and bit modified */
+
 int get_linklocal_addr(char *ifname, struct in6_pktinfo *pinfo)
 {
 	FILE *fp;
