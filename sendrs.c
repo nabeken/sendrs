@@ -104,19 +104,19 @@ int main(int argc, char *argv[]) {
 	exit(1);
     }
 
-    rs_opt_hdr = (struct nd_opt_hdr *)(buf + len);
-    rs_opt_hdr->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
-    rs_opt_hdr->nd_opt_len  = (sizeof(struct nd_opt_hdr) + sizeof(char) * 6) / 8;
-
-    len += sizeof(struct nd_opt_hdr);
 
     if (ifr.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
+	rs_opt_hdr = (struct nd_opt_hdr *)(buf + len);
+	rs_opt_hdr->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
+	rs_opt_hdr->nd_opt_len  = (sizeof(struct nd_opt_hdr) + sizeof(char) * 6) / 8;
+
+	len += sizeof(struct nd_opt_hdr);
+
 	memcpy(buf + len, ifr.ifr_hwaddr.sa_data, sizeof(char) * 6);
+	len += sizeof(char) * 6;
     }
 
     close(fd);
-
-    len += sizeof(char) * 6;
 
     /*
     iov には Router Solicitation (ICMPv6) に関する情報が入る
