@@ -18,6 +18,7 @@ THIS CODE IS PROVIDED BY AS-IS.
 
 #define MSG_SIZE 4096
 #define MAX_IFR 10
+#define HOPLIMIT 255
 #define PATH_PROC_NET_IF_INET6 "/proc/net/if_inet6"
 #define IPV6_ADDR_LINKLOCAL   0x0020U
 
@@ -33,7 +34,7 @@ int main(int argc, char *argv[]) {
     uint8_t *rs_opt;
     unsigned char buf[4096];
     struct msghdr mhdr;
-    struct cmsghdr *cmsg;
+    struct cmsghdr *cmsg_pinfo, *cmsg_hoplimit;
     struct iovec iov;
     struct in6_pktinfo *pinfo;
     struct ifreq ifr;
@@ -52,8 +53,11 @@ int main(int argc, char *argv[]) {
     ifname = argv[1];
 
     int sock, err, fd, nifs, i;
+    int *hoplimit;
     size_t len;
-    char cmsgb[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+    char cmsg_buf[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int))];
+    char cmsg_pinfo_buf[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+    char cmsg_hoplimit_buf[CMSG_SPACE(sizeof(int))];
 
     memset(&hints, 0, sizeof(hints));
 
@@ -108,7 +112,7 @@ int main(int argc, char *argv[]) {
     if (ifr.ifr_hwaddr.sa_family == ARPHRD_ETHER) {
 	rs_opt = (uint8_t *) (buf + len);
 	*rs_opt++ = ND_OPT_SOURCE_LINKADDR;
-	*rs_opt++ = (uint8_t) 1;
+	*rs_opt++ = (uint8_t) 1; /* Ethernet 決め打ち… */
 
 	len += 2 * sizeof(uint8_t);
 
@@ -131,28 +135,55 @@ int main(int argc, char *argv[]) {
     cmdg には宛先サドレスが入る
     */
 
-    memset(cmsgb, 0, sizeof(cmsgb));
+    memset(cmsg_pinfo_buf, 0, sizeof(cmsg_pinfo_buf));
+    memset(cmsg_hoplimit_buf, 0, sizeof(cmsg_hoplimit_buf));
 
-    cmsg = (struct cmsghdr *) cmsgb;
-    cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
-    cmsg->cmsg_level = IPPROTO_IPV6;
-    cmsg->cmsg_type = IPV6_PKTINFO;
+    cmsg_pinfo = (struct cmsghdr *) cmsg_pinfo_buf;
+    cmsg_pinfo->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+    cmsg_pinfo->cmsg_level = IPPROTO_IPV6;
+    cmsg_pinfo->cmsg_type = IPV6_PKTINFO;
 
-    pinfo = (struct in6_pktinfo *)CMSG_DATA(cmsg);
+    pinfo = (struct in6_pktinfo *)CMSG_DATA(cmsg_pinfo);
     err = get_linklocal_addr(ifname, pinfo);
+
+    fprintf(stderr, "pinfo: %i\n", sizeof(cmsg_pinfo_buf));
 
     if (err < 0) {
 	perror("can't get link local address");
 	exit(1);
     }
 
+    fprintf(stderr, "dev: %i\n", ((struct in6_pktinfo *)CMSG_DATA(cmsg_pinfo))->ipi6_ifindex);
+
+    cmsg_hoplimit = (struct cmsghdr *) cmsg_hoplimit_buf;
+    cmsg_hoplimit->cmsg_len = CMSG_LEN(sizeof(int));
+    cmsg_hoplimit->cmsg_level = IPPROTO_IPV6;
+    cmsg_hoplimit->cmsg_type = IPV6_HOPLIMIT;
+
+    fprintf(stderr, "hoplimit: %i\n", sizeof(cmsg_hoplimit_buf));
+
+    hoplimit = (int *)CMSG_DATA(cmsg_hoplimit);
+    *hoplimit = HOPLIMIT;
+
+    memcpy(cmsg_buf, cmsg_pinfo_buf, sizeof(cmsg_pinfo_buf));
+    memcpy(cmsg_buf + sizeof(cmsg_pinfo_buf), cmsg_hoplimit, sizeof(cmsg_hoplimit_buf));
+
     memset(&mhdr, 0, sizeof(mhdr));
     mhdr.msg_name = (caddr_t *)&ss;
     mhdr.msg_namelen = sizeof(struct sockaddr_in6);
     mhdr.msg_iov = &iov;
     mhdr.msg_iovlen = 1;
-    mhdr.msg_control = (void *) cmsg;
-    mhdr.msg_controllen = sizeof(cmsgb);
+    mhdr.msg_control = (void *) cmsg_buf;
+    mhdr.msg_controllen = sizeof(cmsg_buf);
+
+    fprintf(stderr, "controllen: %i\n", mhdr.msg_controllen);
+
+    if (CMSG_NXTHDR(&mhdr, cmsg_pinfo) != NULL) {
+	fprintf(stderr, "has next\n");
+    } else {
+	fprintf(stderr, "has no next!\n");
+	exit(1);
+    }
 
     err = sendmsg(sock, &mhdr, 0);
 
