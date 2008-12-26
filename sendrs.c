@@ -18,11 +18,14 @@ THIS CODE IS PROVIDED BY AS-IS.
 
 #define MSG_SIZE 4096
 #define MAX_IFR 10
-#define IFNM "eth0"
 #define PATH_PROC_NET_IF_INET6 "/proc/net/if_inet6"
 #define IPV6_ADDR_LINKLOCAL   0x0020U
 
-int main(void) {
+void usage(char *cmd) {
+    fprintf(stderr, "usage: %s <interface>\n", cmd);
+}
+
+int main(int argc, char *argv[]) {
     char all_routers_addr[] = "ff02::2";
     struct addrinfo hints, *res;
     static struct sockaddr_storage ss;
@@ -34,6 +37,17 @@ int main(void) {
     struct iovec iov;
     struct in6_pktinfo *pinfo;
     struct ifreq ifr;
+    char *ifname;
+
+    if (argc < 2) {
+	fprintf(stderr, "please specify interface\n");
+	usage(argv[0]);
+	exit(1);
+    } else if (argc > 2) {
+	fprintf(stderr, "too many args\n");
+	usage(argv[0]);
+	exit(1);
+    }
 
     int sock, err, fd, nifs, i;
     size_t len;
@@ -81,7 +95,7 @@ int main(void) {
     fd = socket(AF_INET, SOCK_DGRAM, 0);
 
     ifr.ifr_addr.sa_family = AF_INET;
-    strncpy(ifr.ifr_name, IFNM, IFNAMSIZ-1);
+    strncpy(ifr.ifr_name, ifname, IFNAMSIZ-1);
 
     if (ioctl(fd, SIOCGIFHWADDR, &ifr) != 0) {
 	perror("ioctl error");
@@ -123,7 +137,7 @@ int main(void) {
     cmsg->cmsg_type = IPV6_PKTINFO;
 
     pinfo = (struct in6_pktinfo *)CMSG_DATA(cmsg);
-    err = get_linklocal_addr(IFNM, pinfo);
+    err = get_linklocal_addr(ifname, pinfo);
 
     if (err < 0) {
 	perror("can't get link local address");
