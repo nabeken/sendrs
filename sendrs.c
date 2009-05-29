@@ -1,5 +1,5 @@
 /*
-Sending Router Solicitation test implementation
+Test implementation of sending Router Solicitation.
 
 THIS CODE IS PROVIDED BY AS-IS.
 
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
     err = getaddrinfo(all_routers_addr, NULL, &hints, &res);
 
     if (err) {
-	fprintf(stderr, "%s/%s: %s\n", all_routers_addr, IPPROTO_ICMPV6, gai_strerror(err));
+	fprintf(stderr, "%s/%d: %s\n", all_routers_addr, IPPROTO_ICMPV6, gai_strerror(err));
 	exit(1);
     }
 
@@ -79,9 +79,10 @@ int main(int argc, char *argv[]) {
     }
 
     memcpy(&ss, res->ai_addr, res->ai_addrlen);
-    freeaddrinfo(res);
 
     sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+    freeaddrinfo(res);
 
     if (sock < 0) {
 	perror("socket error");
